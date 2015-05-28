@@ -25,14 +25,30 @@ def search_possibilities(hints, actual_row, width):
       return []
       
    # Begin recursion with no expansions (everything left shifted), no successes, and
-   # a depth of 0.
-   expansions = [0 for x in xrange(len(hints))]
+   # a depth of 0. Then account for hints with consecutive ID's by starting the corresponding
+   # expansions at 1.
+   expansions = [ 1 if i > 0 and h[0] == hints[i-1][0] else 0 for i, h in enumerate(hints) ]
    base = [ (STATUS_NOT_SURE, actual_row[x]) for x in xrange(width) ]
-   search_possibilities_recursive(hints, expansions, actual_row, width, 0, base)
+   
+   # Before recursing, perform one last check. If we definitely can't decide on any cells this
+   # round, then don't even bother trying. In this instance, we limit only to empty rows and
+   # check if the largest hint is longer than the remaining unused cells.
+   should_search = True
+   if sum(actual_row) == (CELL_EMPTY * width):
+      largest_hint = max( [h[1] for h in hints] )
+      num_unused_cells = width - calc_row_width(hints, expansions)
+      if num_unused_cells < largest_hint:
+         should_search = True
+      else:
+         should_search = False
+         print "Skipping search, not enough hints."
+         
+   if should_search:
+      search_possibilities_recursive(hints, expansions, actual_row, width, 0, base)
 
    return [x[1] for x in base]
 
-
+   
 # This function is a helper for search_possibilities() and should not be called directly.
 # It's assumed that len(hints) and len(expansions) are equal!
 # Output is base, which is a single row-length array of tuples. tuple[0] is a flag indicating
@@ -51,7 +67,7 @@ def search_possibilities_recursive(hints, expansions, actual_row, width, depth, 
    while loop:
       # This is the typical break condition. If the hints + expansions we're trying are too big for the
       # row, then we need to bail on this combination. It just means we went too deep.
-      current_width = find_used_width(hints, my_expansions)
+      current_width = calc_row_width(hints, my_expansions)
       #print dstring + "Current width: " + str(current_width)
       if current_width > width:
          #print dstring + "Too big!"
@@ -68,20 +84,6 @@ def search_possibilities_recursive(hints, expansions, actual_row, width, depth, 
          test_row_valid = True
          try: # Try / except used to break out of nested loop when placement attempt doesn't work
             for h, e in zip(hints, my_expansions):
-               # If already beyond width and we haven't placed all hints, then this is invalid
-               if test_row_idx >= width:
-                  raise Exception
-               
-               # Account for two identical consecutive palette ID's.
-               if test_row_idx > 0 and test_row[test_row_idx - 1] == h[0]:
-                  # Check to make sure there's not something already here. Since we're placing a
-                  # spacer (empty) we are OK if it's already blank.
-                  if test_row[test_row_idx] != CELL_EMPTY and test_row[test_row_idx] != CELL_BLANK:
-                     raise Exception
-                     
-                  test_row[test_row_idx] = CELL_BLANK
-                  test_row_idx = test_row_idx + 1
-               
                # First add the expansion. This ALWAYS comes before the corresponding hint.
                for i in xrange(e):
                   # Check to make sure we've not overrun
@@ -97,6 +99,7 @@ def search_possibilities_recursive(hints, expansions, actual_row, width, depth, 
                   test_row[test_row_idx] = CELL_BLANK
                   test_row_idx = test_row_idx + 1
                   
+               # Now add the hint.
                for i in xrange(h[1]):
                   # Check to make sure we've not overrun
                   if test_row_idx >= width:
@@ -163,19 +166,14 @@ def search_possibilities_recursive(hints, expansions, actual_row, width, depth, 
    # no more possibilities.
    return loop 
 
-# This function sums the currently used width based on an array of hints (tuples) and expansions.
-# Typically will be used to check if we've exceeded the puzzle width.
-def find_used_width(hints, expansions):
-   used_width = 0
-   
-   # Sum hints. This should never change for this row.
-   for h in hints:
-      used_width += h[1]
+# This function calculates how wide the current row is based on an array of hints (tuples)
+# and expansions. Typically will be used to check if we've exceeded the puzzle width.
+def calc_row_width(hints, expansions):
+   width = 0
+   for h, e in zip(hints, expansions):
+      width += h[1] + e
       
-   # Sum expansions. This will change with each recursive call.
-   used_width += sum(expansions)
-   
-   return used_width
+   return width
 
 
 # This function checks if the grid is completed
@@ -209,7 +207,6 @@ def is_row_complete(row, hints):
    for hint in hints:
       id = hint[0]
       count = hint[1]
-      
       # print "\n   hint: " + str(hint)
       
       hint_matched = False
@@ -284,7 +281,7 @@ def grids_are_equal(a, b):
 
 # Convert all empty cells to blank
 def empty_to_blank(row):
-   for i in xrange(len(row)): # There may be a more efficient / pythonic way of doing this
+   for i in xrange(len(row)):
       if row[i] == CELL_EMPTY:
          row[i] = CELL_BLANK
 
@@ -518,7 +515,6 @@ fout.close()
 #   very long. Then when a cell changes, add that row or col to the queue to be checked. If the queue is
 #   empty then revert to scanning through row x col.
 # - GRAPHICS!!
-# - Bug: find_used_width isn't taking into account repeated color's spacing. It will eventually figure
-#   it out but not sure if it should pre-empt that
 # - Maybe there's a way to start the hints / expansions at a certain point, based on what's already out?
 #   I guess if you knew everything starting from the left or right you could say definitively whole hints.
+# - Could investigate using regex matching algorithms to match hints with rows.
