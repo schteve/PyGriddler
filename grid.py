@@ -16,6 +16,9 @@ class Grid:
    
    def __init__(self, size_x, size_y, hints_col, hints_row):
       self.grid = [[Grid.CELL_EMPTY for y in xrange(size_y)] for x in xrange(size_x)] # Access as grid[x][y]
+      self.solved_cols = [False for x in xrange(size_x)]
+      self.solved_rows = [False for y in xrange(size_y)]
+      
       self.size_x = size_x
       self.size_y = size_y
       self.hints_col = hints_col
@@ -32,56 +35,40 @@ class Grid:
       
       while puzz_is_complete is False:
          for x in xrange(self.size_x):
-            # Allow the user to quit early
-            if self.should_quit_early():
-               return
-            
-            # Get line and hints for this pass
-            line = self.get_col(x)
-            hints = self.hints_col[x]
-            
-            
-            # Check if the line is already solved before trying to solve it
-            # todo: make a cache for which things are solved, and roll this into solve_line
-            if self.is_line_solved(line, hints):
-               continue
-            
-            # Solve as much of this line as possible
-            line = self.solve_line(line, hints)
-            
-            # Check if the line is now solved, since we may have just completed
-            # it. If so, convert any empty cells to blanks.
-            if self.is_line_solved(line, hints):
-               self.empty_to_blank(line)
-            
-            # Save line of data back into the puzzle grid
-            self.set_col(x, line)
+            # Check if the col has already been solved before trying to solve it
+            if self.solved_cols[x] is False:
+               # Allow the user to quit early
+               if self.should_quit_early():
+                  return
+               
+               # Get line and hints for this pass
+               line = self.get_col(x)
+               hints = self.hints_col[x]
+               
+               # Solve as much of this line as possible
+               line, solved = self.solve_line(line, hints)
+               
+               # Save line of data back into the puzzle grid
+               self.set_col(x, line)
+               self.solved_cols[x] = solved
          
          for y in xrange(self.size_y):
-            # Allow the user to quit early
-            if self.should_quit_early():
-               return
-            
-            # Get line and hints for this pass
-            line = self.get_row(y)
-            hints = self.hints_row[y]
-            
-            
-            # Check if the line is already solved before trying to solve it
-            # todo: make a cache for which things are solved, and roll this into solve_line
-            if self.is_line_solved(line, hints):
-               continue
-            
-            # Solve as much of this line as possible
-            line = self.solve_line(line, hints)
-            
-            # Check if the line is now solved, since we may have just completed
-            # it. If so, convert any empty cells to blanks.
-            if self.is_line_solved(line, hints):
-               self.empty_to_blank(line)
-            
-            # Save line of data back into the puzzle grid
-            self.set_row(y, line)
+            # Check if the row has already been solved before trying to solve it
+            if self.solved_rows[y] is False:
+               # Allow the user to quit early
+               if self.should_quit_early():
+                  return
+               
+               # Get line and hints for this pass
+               line = self.get_row(y)
+               hints = self.hints_row[y]
+               
+               # Solve as much of this line as possible
+               line, solved = self.solve_line(line, hints)
+               
+               # Save line of data back into the puzzle grid
+               self.set_row(y, line)
+               self.solved_rows[y] = solved
          
          # Check if whole grid is solved now
          if self.is_solved():
@@ -105,24 +92,28 @@ class Grid:
    
    def solve_line(self, line, hints):
       if len(hints) == 0:
-         return [Grid.CELL_BLANK for i in line]
-         
-      # todo: check completion here
+         return [Grid.CELL_BLANK for i in line], True # todo: can this check be folded in more elegantly?
       
+      if self.is_line_solved(line, hints):
+         self.empty_to_blank(line)
+         return line, True
+         
       line_len = len(line)
+      solved = False
       
       # Begin recursion with no expansions (everything left shifted), no successes, and
       # a depth of 0. Then account for hints with consecutive ID's by starting the corresponding
       # expansions at 1.
       expansions = [ 1 if i > 0 and h[0] == hints[i-1][0] else 0 for i, h in enumerate(hints) ]
-      result = [(Grid.STATUS_NOT_SURE, item) for item in line]
+      status = [Grid.STATUS_NOT_SURE for i in xrange(line_len)]
+      result = line[:]
       
       # Before recursing, perform one last check. If we definitely can't decide on any cells this
       # round, then don't even bother trying. In this instance, we limit only to empty rows and
       # check if the largest hint is longer than the remaining unused cells.
       should_search = True
       if line == [Grid.CELL_EMPTY] * line_len:
-         hints_count_list = zip(*hints)[1]
+         hints_count_list = [count for id, count in hints]
          expanded_length = sum(expansions) + sum(hints_count_list)
          num_unused_cells = line_len - expanded_length
          
@@ -131,22 +122,28 @@ class Grid:
             #print "Skipping search, not enough hints."
       
       if should_search:
-         self.solve_line_recursive(line, hints, expansions, 0, result)
+         self.solve_line_recursive(line, hints, expansions, 0, status, result)
+         
+         # Check if the line is now solved, since we may have just completed it.
+         # If so, convert any empty cells to blanks.
+         if self.is_line_solved(line, hints):
+            self.empty_to_blank(line)
+            solved = True
       
-      return zip(*result)[1]
+      return result, solved
    
    
    # This function is a helper for search_possibilities() and should not be called directly.
    # It's assumed that len(hints) and len(expansions) are equal!
-   # Output is result, which is a single line-length array of tuples. tuple[0] is a flag indicating
-   # if that element is determined yet (needed when merging in a new candidate line, and when
-   # all elements are determined we can stop searching for possibilities.
+   # Output is result, which is a single line-length list of values. status is a flag indicating
+   # if the corresponding result element is determined yet (needed when merging in a new
+   # candidate line, and when all elements are determined we can stop searching for possibilities.
    # Return True if looping should continue, False otherwise. Used to break out when there's
    # no more possibilities.
-   def solve_line_recursive(self, line, hints, expansions, depth, result):
+   def solve_line_recursive(self, line, hints, expansions, depth, status, result):
       # Make a full copy of the expansions list because we're going to modify it, and we don't
       # want changes to propagate up through the recursive calls.
-      hints_count_list = zip(*hints)[1]
+      hints_count_list = [count for id, count in hints]
       my_expansion = expansions[depth] # Push expansion value, should always be the original base expansion of either 0 or 1
       line_len = len(line)
       
@@ -166,7 +163,7 @@ class Grid:
          
          # Recursively try all possibilities
          if len(hints) - depth > 1: # Check here instead of in beginning of function to reduce pointless calls
-            loop = self.solve_line_recursive(line, hints, expansions, depth + 1, result)
+            loop = self.solve_line_recursive(line, hints, expansions, depth + 1, status, result)
          else:
             # Place the hints and expansions as they are right now and see if it's valid. Line is valid
             # if it fits and doesn't collide with anything already in place.
@@ -209,20 +206,22 @@ class Grid:
             if test_line_valid is True:
                # Merge the result and candidate line.
                #print ' '*3 + str(test_line)
-               for i, (status, value) in enumerate(result):
-                  if status == Grid.STATUS_NOT_SURE:
+               for i, value in enumerate(result):
+                  if status[i] == Grid.STATUS_NOT_SURE:
                      if value == Grid.CELL_EMPTY:
                         # The cell is currently empty, so if there's a better candidate go ahead and use it!
-                        result[i] = (Grid.STATUS_NOT_SURE, test_line[i])
+                        status[i] = Grid.STATUS_NOT_SURE
+                        result[i] = test_line[i]
                      elif value != test_line[i]:
                         # We've seen two different possibilities for this cell so we are sure we don't know what it is.
-                        result[i] = (Grid.STATUS_SURE, Grid.CELL_EMPTY)
+                        status[i] = Grid.STATUS_SURE
+                        result[i] = Grid.CELL_EMPTY
                      else:
                         # They're the same, so nothing changes.
                         pass
                
                # If we're sure of every element there's no point in continuing to search.
-               if zip(*result)[0] == [Grid.STATUS_SURE] * line_len:
+               if status == [Grid.STATUS_SURE] * line_len:
                   loop = False
                   print "Stopping early, nothing new."
                
@@ -245,14 +244,14 @@ class Grid:
       for x in xrange(self.size_x):
          col = self.get_col(x)
          hints = self.hints_col[x]
-         if not self.is_line_solved(col, hints):
+         if self.is_line_solved(col, hints) is False: # todo: create a row / col solved function which automatically caches the result for speed
             return False
       
       # Check rows (iterate in y direction)
       for y in xrange(self.size_y):
          row = self.get_row(y)
          hints = self.hints_row[y]
-         if not self.is_line_solved(row, hints):
+         if self.is_line_solved(row, hints) is False:
             return False
       
       # If we made it this far, the grid must be complete!
@@ -297,7 +296,7 @@ class Grid:
                   # print "   Hint matched!"
                   hint_matched = True
                   
-               elif line[idx] == Grid.CELL_BLANK: #or line[idx] == Grid.CELL_EMPTY: sdh
+               elif line[idx] == Grid.CELL_BLANK:
                   # It's OK if there's a blank or empty cell before this hint is matched
                   # print "   Found blank or empty at idx =", str(idx)
                   idx += 1
