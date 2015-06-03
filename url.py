@@ -13,14 +13,16 @@ print ""
 puzzle_id = 139714
 if len(sys.argv) > 1:
    puzzle_id = int(sys.argv[1])
+base_file_name = 'puzzles/griddler_%d' % puzzle_id
 
 # Pull in the puzzle's solver page. This is the one that has the puzzle definition.
 # If already exists on disk, just use that one. Otherwise grab from website and save to disk.
-disk_file_name = "puzzles/griddler{0}.txt".format(puzzle_id)
+
+disk_file_name = base_file_name + '.html'
 web_html = ""
 if os.path.isfile(disk_file_name):
    print "Reading HTML from disk."
-   f = open(disk_file_name, "r")
+   f = open(disk_file_name, 'r')
    web_html = f.read()
    f.close()
 else:
@@ -31,7 +33,7 @@ else:
    web_html = web_file.read()
    
    print "Writing HTML to disk."
-   f = open(disk_file_name, "w")
+   f = open(disk_file_name, 'w')
    f.write(web_html)
    f.close()
 print "Page data retrieved."
@@ -42,16 +44,16 @@ print "Page data retrieved."
 # Puzzle width
 result = re.search('var pwidth = ([0-9]+)', web_html)
 puzz_width = int(result.group(1))
-print "Puzzle width: " + str(puzz_width)
+print "Puzzle width:", puzz_width
 
 # Puzzle height
 result = re.search('var pheight = ([0-9]+)', web_html)
 puzz_height = int(result.group(1))
-print "Puzzle height: " + str(puzz_height)
+print "Puzzle height:", puzz_height
 
 # Puzzle horizontal (left) codes
 puzz_left_hints = []
-for result in re.finditer('leftCodes\[[0-9]+\]=\"(.*)\";', web_html):
+for result in re.finditer('leftCodes\[[0-9]+\]=\"(.*)\";', web_html): # todo: better regex use, can probably do this in one line
    left_hint_list = []
    for r in result.group(1).split(','):
       left_hint = re.search('([0-9]+):([0-9]+)', r)
@@ -74,14 +76,12 @@ for result in re.finditer('topCodes\[[0-9]+\]=\"(.*)\";', web_html):
    puzz_top_hints.append(top_hint_list)
 
 print "Column hints:"
-for hint in puzz_top_hints:
-   print hint
-print ""
+print '\n'.join([str(hint) for hint in puzz_top_hints]) # todo: try to use map for this?
+print "\n"
 
 print "Row hints:"
-for hint in puzz_left_hints:
-   print hint
-print ""
+print '\n'.join([str(hint) for hint in puzz_left_hints])
+print "\n"
 
 puzz_grid = grid.Grid(puzz_width, puzz_height, puzz_top_hints, puzz_left_hints)
 
@@ -91,38 +91,28 @@ puzz_grid = grid.Grid(puzz_width, puzz_height, puzz_top_hints, puzz_left_hints)
 # Search possibilities
 begin_time = time.clock()
 puzz_grid.solve()
-
-# We're done solving! Now get the solve time and dump data to disk.
 end_time = time.clock()
 solve_time = end_time - begin_time
+
+# We're done solving! Now get the solve time and dump data to disk.
 solve_h = int(solve_time / 60 / 60)
 solve_m = int((solve_time - (solve_h * 60 * 60)) / 60)
 solve_s = int(solve_time - (solve_m * 60))
-solve_time_str = 'Solve time: ' + str(solve_time) + ' ({0}h {1}m {2}s)'.format(solve_h, solve_m, solve_s)
+solve_time_str = 'Solve time: {0} ({1}h {2}m {3}s)'.format(solve_time, solve_h, solve_m, solve_s)
 
 print 'Final grid:'
-print puzz_grid.printable()
-print 'Time:', solve_time_str
+print puzz_grid
+print solve_time_str
 
-# File name suffix for easy ID if the file is solved or not
-suffix = ''
-if puzz_grid.is_solved():
-   suffix = 'solved'    # Puzzle is complete!
-#elif quit_early:
-   #suffix = 'quit'      # User quit the puzzle while solving
-else:
-   suffix = 'unsolved'  # Unable to be solved!
-
-solved_file_name = '{0}-{1}.txt'.format(disk_file_name, suffix)
-fout = open(solved_file_name, 'w')
-fout.write(solve_time_str + '\n')
-fout.write(puzz_grid.printable())
-fout.close()
+# todo: use YAML
+result_file_name = base_file_name + '.txt'
+with open(result_file_name, 'w') as fout:
+   fout.write(solve_time_str + '\n')
+   fout.write(str(puzz_grid))
 #raw_input("Press Enter to continue...")
 
 # - Could have a speedup where if the row is empty and the sum of the components isn't long enough,
-#   just skip the row and return all empties.
-# - I should really create a custom exception so that regular ones aren't getting caught in the search loop
+#   just skip the row and return all empties. I already have this but the speedup I have might be faulty.
 # - Create a queueing system for which rows / cols to look through. Initially add one or more that are
 #   very long. Then when a cell changes, add that row or col to the queue to be checked. If the queue is
 #   empty then revert to scanning through row x col.

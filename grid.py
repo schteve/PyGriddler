@@ -25,6 +25,14 @@ class Grid:
       self.hints_row = hints_row
    
    
+   def __repr__(self, ):
+      row_str = []
+      for y in xrange(self.size_y):
+         row = self.get_row(y)
+         row_str.append(' '.join(map(str, row)))
+      return '\n'.join(row_str) + '\n'
+   
+   
    def solve(self):
       puzz_is_complete = False
       
@@ -72,7 +80,6 @@ class Grid:
          
          # Check if whole grid is solved now
          if self.is_solved():
-            print "\nGrid is complete!!"
             puzz_is_complete = True
             break
          
@@ -83,7 +90,7 @@ class Grid:
             #break
          
          print 'Current grid:'
-         print self.printable()
+         print self
          
          #print "Grid not complete yet, iterating again...\n"
          #last_puzz_grid = copy_grid(puzz_grid) # Make a copy for comparison after next iteration
@@ -263,25 +270,25 @@ class Grid:
          return True
       
       # print "Checking:"
-      # print "   line:", str(line)
+      # print "   line:", line
       
       try:
          idx = 0 # todo: make this into an iterator
          for hint in hints:
             id, count = hint
-            # print "\n   hint:", str(hint)
+            # print "\n   hint:", hint
             
             hint_matched = False
             while hint_matched is False:
                if line[idx] == id:
                   # Found a cell that matches this hint, now make sure it matches the full hint
-                  # print "   Found beginning of hint", str(hint)
+                  # print "   Found beginning of hint", hint
                   count -= 1
                   idx   += 1
                   
                   while count > 0:
-                     # print "      count:", str(count)
-                     # print "      idx:", str(idx)
+                     # print "      count:", count
+                     # print "      idx:", idx
                      
                      if line[idx] != id:
                         # The hint has the correct ID but isn't the full length
@@ -298,7 +305,7 @@ class Grid:
                   
                elif line[idx] == Grid.CELL_BLANK:
                   # It's OK if there's a blank or empty cell before this hint is matched
-                  # print "   Found blank or empty at idx =", str(idx)
+                  # print "   Found blank or empty at idx =", idx
                   idx += 1
                   
                else:
@@ -339,17 +346,6 @@ class Grid:
       for i in xrange(len(line)):
          if line[i] == Grid.CELL_EMPTY:
             line[i] = Grid.CELL_BLANK
-   
-   
-   def printable(self):
-      print_str = ''
-      
-      for y in xrange(self.size_y):
-         for x in xrange(self.size_x):
-            print_str += str(self.grid[x][y]) + ' '
-         print_str += '\n'
-      
-      return print_str
    
    
    def should_quit_early(self): # todo: something with this. ugly.
