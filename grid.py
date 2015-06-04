@@ -36,15 +36,10 @@ class Grid:
    def solve(self):
       puzz_is_complete = False
       
-      #print "Hints (columns):"
-      #pprint(self.hints_col)
-      #print "Hints (rows):"
-      #pprint(self.hints_row)
-      
       while puzz_is_complete is False:
          for x in xrange(self.size_x):
             # Check if the col has already been solved before trying to solve it
-            if self.solved_cols[x] is False:
+            if not self.is_col_solved(x):
                # Allow the user to quit early
                if self.should_quit_early():
                   return
@@ -54,15 +49,18 @@ class Grid:
                hints = self.hints_col[x]
                
                # Solve as much of this line as possible
-               line, solved = self.solve_line(line, hints)
+               result = self.solve_line(line, hints)
                
-               # Save line of data back into the puzzle grid
-               self.set_col(x, line)
-               self.solved_cols[x] = solved
+               # The line may have just been completed, if so convert all empties to blanks
+               # to improve results / efficiency on other lines
+               self.is_col_solved(x)
+               
+               # Save result back into the puzzle grid
+               self.set_col(x, result)
          
          for y in xrange(self.size_y):
             # Check if the row has already been solved before trying to solve it
-            if self.solved_rows[y] is False:
+            if not self.is_row_solved(y):
                # Allow the user to quit early
                if self.should_quit_early():
                   return
@@ -72,11 +70,14 @@ class Grid:
                hints = self.hints_row[y]
                
                # Solve as much of this line as possible
-               line, solved = self.solve_line(line, hints)
+               line = self.solve_line(line, hints)
+               
+               # The line may have just been completed, if so convert all empties to blanks
+               # to improve results / efficiency on other lines
+               self.is_row_solved(y)
                
                # Save line of data back into the puzzle grid
                self.set_row(y, line)
-               self.solved_rows[y] = solved
          
          # Check if whole grid is solved now
          if self.is_solved():
@@ -98,15 +99,7 @@ class Grid:
    
    
    def solve_line(self, line, hints):
-      if len(hints) == 0:
-         return [Grid.CELL_BLANK for i in line], True # todo: can this check be folded in more elegantly?
-      
-      if self.is_line_solved(line, hints):
-         self.empty_to_blank(line)
-         return line, True
-         
       line_len = len(line)
-      solved = False
       
       # Begin recursion with no expansions (everything left shifted), no successes, and
       # a depth of 0. Then account for hints with consecutive ID's by starting the corresponding
@@ -130,14 +123,8 @@ class Grid:
       
       if should_search:
          self.solve_line_recursive(line, hints, expansions, 0, status, result)
-         
-         # Check if the line is now solved, since we may have just completed it.
-         # If so, convert any empty cells to blanks.
-         if self.is_line_solved(line, hints):
-            self.empty_to_blank(line)
-            solved = True
       
-      return result, solved
+      return result
    
    
    # This function is a helper for search_possibilities() and should not be called directly.
@@ -194,7 +181,7 @@ class Grid:
                   for i in xrange(e):
                      try_set(test_line, test_line_idx + i, Grid.CELL_BLANK)
                   test_line_idx += e
-                     
+                  
                   # Now add the hint.
                   for i in xrange(hint_count):
                      try_set(test_line, test_line_idx + i, hint_id)
@@ -249,16 +236,12 @@ class Grid:
    def is_solved(self):
       # Check columns (iterate in x direction)
       for x in xrange(self.size_x):
-         col = self.get_col(x)
-         hints = self.hints_col[x]
-         if self.is_line_solved(col, hints) is False: # todo: create a row / col solved function which automatically caches the result for speed
+         if not self.solved_cols[x]:
             return False
       
       # Check rows (iterate in y direction)
       for y in xrange(self.size_y):
-         row = self.get_row(y)
-         hints = self.hints_row[y]
-         if self.is_line_solved(row, hints) is False:
+         if not self.solved_rows[y]:
             return False
       
       # If we made it this far, the grid must be complete!
@@ -266,9 +249,6 @@ class Grid:
    
    
    def is_line_solved(self, line, hints):
-      if len(hints) == 0:
-         return True
-      
       # print "Checking:"
       # print "   line:", line
       
@@ -312,15 +292,41 @@ class Grid:
                   # We found a different ID than the hint was expecting. This means the line is wrong.
                   # print "   ID doesn't match!"
                   return False
-                  
+               
       except IndexError:
          # Ran over the end of the line without finding a match for the hint
          # print "   Ran over length main loop"
          return False
-            
+      
       # If we made it through the whole line and each hint and didn't have any issues then it must match!
       # print "Line is valid!"
       return True
+   
+   
+   def is_col_solved(self, x):
+      if self.solved_cols[x] is False:
+         line = self.get_col(x)
+         hints = self.hints_col[x]
+         
+         if self.is_line_solved(line, hints) is True:
+            self.solved_cols[x] = True
+            self.empty_to_blank(line)
+            self.set_col(x, line)
+      
+      return self.solved_cols[x]
+   
+   
+   def is_row_solved(self, y):
+      if self.solved_rows[y] is False:
+         line = self.get_row(y)
+         hints = self.hints_row[y]
+         
+         if self.is_line_solved(line, hints) is True:
+            self.solved_rows[y] = True
+            self.empty_to_blank(line)
+            self.set_row(y, line)
+      
+      return self.solved_rows[y]
    
    
    def get_col(self, x):
