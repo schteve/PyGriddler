@@ -23,8 +23,10 @@ class Grid:
          for y in xrange(size_y):
             self.grid[x, y] = Grid.CELL_EMPTY
       
-      self.solved_cols = [False for x in xrange(size_x)]
-      self.solved_rows = [False for y in xrange(size_y)]
+      self.solved_cols  = [False for x in xrange(size_x)]
+      self.solved_rows  = [False for y in xrange(size_y)]
+      self.changed_cols = [True  for x in xrange(size_x)]
+      self.changed_rows = [True  for y in xrange(size_y)]
    
    
    def __repr__(self, ):
@@ -37,84 +39,74 @@ class Grid:
    
    def solve(self):
       puzz_is_complete = False
-      solve_queue = [(Grid.COLUMN, x) for x in xrange(self.size_x)] + [(Grid.ROW, y) for y in xrange(self.size_y)]
-      iter_count = 0
-      while puzz_is_complete is False and solve_queue:
-         which, coord = solve_queue.pop(0)
-         if which == Grid.COLUMN:
+      while puzz_is_complete is False:
+         for x in xrange(self.size_x):
             # Check if the col has already been solved before trying to solve it
-            if not self.is_col_solved(coord):
+            if not self.is_col_solved(x) and self.changed_cols[x]:
                # Allow the user to quit early
                if self.should_quit_early():
                   return
                
                # Get line and hints for this pass
-               line = self.get_col(coord)
-               hints = self.hints_col[coord]
+               line = self.get_col(x)
+               hints = self.hints_col[x]
                
                # Solve as much of this line as possible, then save data back into the grid
                result = self.solve_line(line, hints)
-               self.set_col(coord, result)
+               self.set_col(x, result)
+               
+               # The line may have just been completed, if so convert all empties to blanks
+               # to improve results / efficiency on other lines
+               self.is_col_solved(x)
                
                # Check differences, then queue perpendiculars
                for y in xrange(self.size_y):
                   if line[y] != result[y]:
-                     q_item = (Grid.ROW, y)
-                     if q_item not in solve_queue:
-                        solve_queue.append(q_item)
-               
-               # The line may have just been completed, if so convert all empties to blanks
-               # to improve results / efficiency on other lines
-               self.is_col_solved(coord)
-
-         elif which == Grid.ROW:
+                     self.changed_rows[y] = True
+               self.changed_cols[x] = False
+         
+         for y in xrange(self.size_y):
             # Check if the row has already been solved before trying to solve it
-            if not self.is_row_solved(coord):
+            if not self.is_row_solved(y) and self.changed_rows[y]:
                # Allow the user to quit early
                if self.should_quit_early():
                   return
                
                # Get line and hints for this pass
-               line = self.get_row(coord)
-               hints = self.hints_row[coord]
+               line = self.get_row(y)
+               hints = self.hints_row[y]
                
                # Solve as much of this line as possible, then save data back into the grid
                result = self.solve_line(line, hints)
-               self.set_row(coord, result)
+               self.set_row(y, result)
+               
+               # The line may have just been completed, if so convert all empties to blanks
+               # to improve results / efficiency on other lines
+               self.is_row_solved(y)
                
                # Check differences, then queue perpendiculars
                for x in xrange(self.size_x):
                   if line[x] != result[x]:
-                     q_item = (Grid.COLUMN, x)
-                     if q_item not in solve_queue:
-                        solve_queue.append(q_item)
-               
-               # The line may have just been completed, if so convert all empties to blanks
-               # to improve results / efficiency on other lines
-               self.is_row_solved(coord)
+                     self.changed_cols[x] = True
+               self.changed_rows[y] = False
          
-         # Every so often, check the grid as a whole to see if it's solved yet
-         iter_count += 1
-         if iter_count >= self.size_x + self.size_y:
-            iter_count = 0
-            
-            # Check if whole grid is solved now
-            if self.is_solved():
-               puzz_is_complete = True
-               break
-            
-            # Check if grid has changed -- if not, we can't solve it!
-            #if grids_are_equal(puzz_grid, last_puzz_grid):
-               #print "\nGrid is unable to be solved! :("
-               #puzz_is_complete = False
-               #break
-            
-            print 'Current grid:'
-            print self
-            
-            #print "Grid not complete yet, iterating again...\n"
-            #last_puzz_grid = copy_grid(puzz_grid) # Make a copy for comparison after next iteration
-            #raw_input("Press Enter to continue...\n")
+         # Check if whole grid is solved now
+         if self.is_solved():
+            puzz_is_complete = True
+            break
+         
+         # Check if grid has changed -- if not, we can't solve it!
+         #if grids_are_equal(puzz_grid, last_puzz_grid):
+            #print "\nGrid is unable to be solved! :("
+            #puzz_is_complete = False
+            #break
+         
+         print 'Current grid:'
+         print self
+         
+         #print "Grid not complete yet, iterating again...\n"
+         #last_puzz_grid = copy_grid(puzz_grid) # Make a copy for comparison after next iteration
+         #raw_input("Press Enter to continue...\n")
    
    
    def solve_line(self, line, hints):
