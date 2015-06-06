@@ -2,10 +2,6 @@ import msvcrt
 #from pprint import pprint
 
 
-# todo: make grid use a dict? grid = {}; grid[x, y] = value; may not be easy to transpose row / col
-# todo: if dict doesn't work out, try keeping a separate sets of rows and cols, keeping them in lockstep
-#        (speed - memory tradeoff)
-
 class Grid:
    
    CELL_BLANK = ' '  # Indicates that we know that a cell is blank, can't have any color there
@@ -15,7 +11,11 @@ class Grid:
    STATUS_SURE = 1 # Element determined: either we know what it is, or we know we can't know yet.
    
    def __init__(self, size_x, size_y, hints_col, hints_row):
-      self.grid = [[Grid.CELL_EMPTY for y in xrange(size_y)] for x in xrange(size_x)] # Access as grid[x][y]
+      self.grid = {} # Access as grid[x, y]
+      for x in xrange(size_x):
+         for y in xrange(size_y):
+            self.grid[x, y] = Grid.CELL_EMPTY
+      
       self.solved_cols = [False for x in xrange(size_x)]
       self.solved_rows = [False for y in xrange(size_y)]
       
@@ -330,21 +330,21 @@ class Grid:
    
    
    def get_col(self, x):
-      return [self.grid[x][y] for y in xrange(self.size_y)]
+      return [self.grid[x, y] for y in xrange(self.size_y)]
    
    
    def get_row(self, y):
-      return [self.grid[x][y] for x in xrange(self.size_x)]
+      return [self.grid[x, y] for x in xrange(self.size_x)]
    
    
    def set_col(self, x, data):
       for y in xrange(self.size_y):
-         self.grid[x][y] = data[y]
+         self.grid[x, y] = data[y]
    
    
    def set_row(self, y, data):
       for x in xrange(self.size_x):
-         self.grid[x][y] = data[x]
+         self.grid[x, y] = data[x]
    
    
    # Convert all empty cells to blank
