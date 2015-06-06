@@ -48,15 +48,14 @@ class Grid:
                line = self.get_col(x)
                hints = self.hints_col[x]
                
-               # Solve as much of this line as possible
+               # Solve as much of this line as possible, then save data back into the grid
                result = self.solve_line(line, hints)
+               self.set_col(x, result)
                
                # The line may have just been completed, if so convert all empties to blanks
                # to improve results / efficiency on other lines
                self.is_col_solved(x)
-               
-               # Save result back into the puzzle grid
-               self.set_col(x, result)
+         
          
          for y in xrange(self.size_y):
             # Check if the row has already been solved before trying to solve it
@@ -69,15 +68,14 @@ class Grid:
                line = self.get_row(y)
                hints = self.hints_row[y]
                
-               # Solve as much of this line as possible
-               line = self.solve_line(line, hints)
+               # Solve as much of this line as possible, then save data back into the grid
+               result = self.solve_line(line, hints)
+               self.set_row(y, result)
                
                # The line may have just been completed, if so convert all empties to blanks
                # to improve results / efficiency on other lines
                self.is_row_solved(y)
-               
-               # Save line of data back into the puzzle grid
-               self.set_row(y, line)
+         
          
          # Check if whole grid is solved now
          if self.is_solved():
